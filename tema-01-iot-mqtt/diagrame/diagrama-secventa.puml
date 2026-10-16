@@ -1,0 +1,40 @@
+@startuml
+autonumber
+actor Operator
+
+box "device-simulator" #LightBlue
+participant PeriodicTask as P
+participant SporadicTask as S
+participant AperiodicTask as A
+end box
+
+participant "MQTT Broker" as Broker
+
+box "business-service" #LightGreen
+participant MessageProcessor as MP
+participant Dashboard as Dash
+participant CommandConsole as CC
+end box
+
+== Scenariul 1: Telemetrie peste prag și generare alarmă ==
+P -> P : Senzor read() > threshold (ex: 29.5 °C)
+P -> Broker : publish "ssatr/.../devices/device-1/telemetry" (29.5 °C)
+P -> S : offer(29.5) în coada alarmEvents
+S -> S : Verifică MIN_INTERARRIVAL_MS (trecut)
+S -> Broker : publish "ssatr/.../devices/device-1/alarm" (29.5 °C)
+Broker -> MP : Mesaj sosit pe topic-ul de alarme
+MP -> MP : CsvStorage append("alarm")
+MP -> Dash : updateAlarm()
+MP -> MP : Afișează imediat în consolă
+
+== Scenariul 2: Operatorul trimite comanda SET_INTERVAL ==
+Operator -> CC : Tastați "device-1 SET_INTERVAL 1000"
+CC -> Broker : publish "ssatr/.../devices/device-1/commands" ("SET_INTERVAL 1000")
+Broker -> A : Mesaj sosit pe topic-ul de comenzi
+A -> P : setPeriodMs(1000)
+A -> Broker : publish "ssatr/.../devices/device-1/status" ("OK SET_INTERVAL 1000")
+Broker -> MP : Mesaj sosit pe topic-ul de status
+MP -> MP : CsvStorage append("status")
+MP -> Dash : updateStatus()
+MP -> MP : Afișează imediat confirmarea în consolă
+@enduml

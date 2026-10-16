@@ -37,6 +37,50 @@ public class AperiodicCommandTask implements Runnable {
 
     @Override
     public void run() {
+        while (!Thread.currentThread().isInterrupted()) {
+            try {
+                String cmdLine = commands.take();
+                long timestamp = System.currentTimeMillis();
+                String responseText;
+                try {
+                    String[] parts = cmdLine.trim().split("\\s+", 2);
+                    String cmdName = parts[0].toUpperCase();
+                    switch (cmdName) {
+                        case "SET_INTERVAL":
+                            if (parts.length < 2) throw new IllegalArgumentException("Lipsește valoarea în ms");
+                            long ms = Long.parseLong(parts[1]);
+                            periodic.setPeriodMs(ms);
+                            responseText = "OK SET_INTERVAL " + ms;
+                            break;
+                        case "SET_THRESHOLD":
+                            if (parts.length < 2) throw new IllegalArgumentException("Lipsește valoarea pragului");
+                            double threshold = Double.parseDouble(parts[1]);
+                            periodic.setThreshold(threshold);
+                            responseText = "OK SET_THRESHOLD " + threshold;
+                            break;
+                        case "RESET":
+                            sensor.reset();
+                            responseText = "OK RESET";
+                            break;
+                        case "STATUS":
+                            responseText = "OK STATUS T=" + periodic.getPeriodMs() + "ms prag=" + periodic.getThreshold();
+                            break;
+                        default:
+                            responseText = "ERROR Comanda necunoscuta: " + cmdName;
+                            break;
+                    }
+                } catch (Exception e) {
+                    responseText = "ERROR " + e.getMessage();
+                }
+                String payload = deviceId + ";" + timestamp + ";" + responseText;
+                mqtt.publish(Config.statusTopic(deviceId), payload);
+                System.out.println("[" + deviceId + "] CONFIRMARE TRIMISĂ: " + payload);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+
         // TODO 3: implementați taskul aperiodic:
         //   - preluați comenzile din coadă: commands.take()
         //   - separați numele comenzii de parametru: command.split(" ")

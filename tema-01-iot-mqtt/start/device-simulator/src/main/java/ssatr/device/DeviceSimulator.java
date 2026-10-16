@@ -28,15 +28,13 @@ public class DeviceSimulator {
         MqttConnection mqtt = new MqttConnection(Config.STUDENT + "-" + deviceId);
         mqtt.connect();
 
-        // cozile prin care comunică taskurile
         BlockingQueue<Double> alarmEvents = new LinkedBlockingQueue<>();
         BlockingQueue<String> commands = new LinkedBlockingQueue<>();
 
-        // comenzile primite pe MQTT ajung direct în coada commands
         mqtt.subscribe(Config.commandTopic(deviceId), commands);
 
         PeriodicTelemetryTask periodic = new PeriodicTelemetryTask(deviceId, sensor, mqtt, alarmEvents);
-        SporadicAlarmTask sporadic = new SporadicAlarmTask(deviceId, mqtt, alarmEvents);
+        SporadicAlarmTask sporadic = new SporadicAlarmTask(deviceId, mqtt, alarmEvents, periodic);
         AperiodicCommandTask aperiodic = new AperiodicCommandTask(deviceId, sensor, mqtt, commands, periodic);
 
         new Thread(periodic, "periodic").start();

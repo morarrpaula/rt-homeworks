@@ -1,0 +1,41 @@
+@startuml
+package "device-simulator (Java)" {
+    [PeriodicTelemetryTask] --> [TemperatureSensor] : citește
+    [PeriodicTelemetryTask] --> [BlockingQueue: alarmEvents] : trimite
+    [SporadicAlarmTask] --> [BlockingQueue: alarmEvents] : preia
+    [MqttConnection (Device)] <-- [PeriodicTelemetryTask] : publish telemetry
+    [MqttConnection (Device)] <-- [SporadicAlarmTask] : publish alarm
+    [MqttConnection (Device)] --> [BlockingQueue: commands] : adaugă
+    [AperiodicCommandTask] --> [BlockingQueue: commands] : preia
+    [AperiodicCommandTask] --> [PeriodicTelemetryTask] : modifică parametrii
+    [AperiodicCommandTask] --> [MqttConnection (Device)] : publish status
+}
+
+cloud "MQTT Broker (tcp://control.aut.utcluj.ro:11188)" {
+    [MQTT Broker]
+}
+
+package "business-service (Java)" {
+    [MqttConnection (Service)] --> [BlockingQueue: telemetryInbox] : adaugă
+    [MqttConnection (Service)] --> [BlockingQueue: alarmInbox] : adaugă
+    [MqttConnection (Service)] --> [BlockingQueue: statusInbox] : adaugă
+
+    [MessageProcessor (Telemetry)] --> [BlockingQueue: telemetryInbox] : preia
+    [MessageProcessor (Alarm)] --> [BlockingQueue: alarmInbox] : preia
+    [MessageProcessor (Status)] --> [BlockingQueue: statusInbox] : preia
+
+    [MessageProcessor (Telemetry)] --> [CsvStorage] : scrie telemetry.csv
+    [MessageProcessor (Alarm)] --> [CsvStorage] : scrie alarm.csv
+    [MessageProcessor (Status)] --> [CsvStorage] : scrie status.csv
+
+    [MessageProcessor (Telemetry)] --> [Dashboard] : actualizează
+    [MessageProcessor (Alarm)] --> [Dashboard] : actualizează
+    [MessageProcessor (Status)] --> [Dashboard] : actualizează
+
+    [CommandConsole] --> [Dashboard] : citește / afișează
+    [CommandConsole] --> [MqttConnection (Service)] : publish commands
+}
+
+[MqttConnection (Device)] <--> [MQTT Broker]
+[MqttConnection (Service)] <--> [MQTT Broker]
+@enduml

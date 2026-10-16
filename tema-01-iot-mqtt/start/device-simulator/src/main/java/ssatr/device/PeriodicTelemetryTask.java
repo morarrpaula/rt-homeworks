@@ -17,7 +17,6 @@ public class PeriodicTelemetryTask implements Runnable {
     private final MqttConnection mqtt;
     private final BlockingQueue<Double> alarmEvents;
 
-    // volatile: sunt citite aici, dar modificate de taskul aperiodic (alt thread)
     private volatile long periodMs = 2000;
     private volatile double threshold = 28.0;
 
@@ -31,6 +30,29 @@ public class PeriodicTelemetryTask implements Runnable {
 
     @Override
     public void run() {
+        long nextReleaseNano = System.nanoTime();
+        while (!Thread.currentThread().isInterrupted()) {
+            double temp = sensor.read();
+            long timestamp = System.currentTimeMillis();
+            String tempFormatted = String.format(java.util.Locale.US, "%.2f", temp);
+            String payload = deviceId + ";" + timestamp + ";" + tempFormatted;
+            mqtt.publish(Config.telemetryTopic(deviceId), payload);
+            if (temp > threshold) {
+                alarmEvents.offer(temp);
+            }
+            nextReleaseNano += periodMs * 1_000_000L;
+            long sleepNano = nextReleaseNano - System.nanoTime();
+            if (sleepNano > 0) {
+                try {
+                    Thread.sleep(sleepNano / 1_000_000L);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            } else {
+                nextReleaseNano = System.nanoTime();
+            }
+        }
         // TODO 1: implementați bucla taskului periodic. Fiecare job:
         //   - citiți temperatura: sensor.read()
         //   - publicați pe Config.telemetryTopic(deviceId) mesajul "deviceId;timestamp;temperatura"

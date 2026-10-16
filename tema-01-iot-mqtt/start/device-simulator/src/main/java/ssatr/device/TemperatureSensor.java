@@ -16,12 +16,12 @@ public class TemperatureSensor {
     private double value = INITIAL;
 
     public synchronized double read() {
-        value += (random.nextDouble() - 0.5);      // variație mică: ±0.5 °C
+        value += (random.nextDouble() - 0.5);
         if (random.nextInt(10) == 0) {
-            value += 3 + random.nextDouble() * 5;   // vârf ocazional
+            value += 3 + random.nextDouble() * 5;
         }
         if (value > INITIAL + 2) {
-            value -= 1;                             // revine treptat spre valoarea normală
+            value -= 1;
         }
         return value;
     }

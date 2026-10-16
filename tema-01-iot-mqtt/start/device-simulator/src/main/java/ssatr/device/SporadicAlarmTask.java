@@ -18,15 +18,40 @@ public class SporadicAlarmTask implements Runnable {
     private final String deviceId;
     private final MqttConnection mqtt;
     private final BlockingQueue<Double> alarmEvents;
+    private final PeriodicTelemetryTask periodic;
+    private long lastAlarmTimeMs = 0;
 
-    public SporadicAlarmTask(String deviceId, MqttConnection mqtt, BlockingQueue<Double> alarmEvents) {
+    public SporadicAlarmTask(String deviceId, MqttConnection mqtt, BlockingQueue<Double> alarmEvents, PeriodicTelemetryTask periodic) {
         this.deviceId = deviceId;
         this.mqtt = mqtt;
         this.alarmEvents = alarmEvents;
+        this.periodic = periodic;
     }
-
     @Override
     public void run() {
+        while (!Thread.currentThread().isInterrupted()) {
+            try {
+                double temp = alarmEvents.take();
+                long now = System.currentTimeMillis();
+                if (now - lastAlarmTimeMs < MIN_INTERARRIVAL_MS) {
+                    System.out.println("[" + deviceId + "] ALARMĂ RESPINSĂ (prea curând): "
+                            + String.format(java.util.Locale.US, "%.2f", temp) + " °C");
+                } else {
+                    lastAlarmTimeMs = now;
+                    String tempFormatted = String.format(java.util.Locale.US, "%.2f", temp);
+                    double currentThreshold = (periodic != null) ? periodic.getThreshold() : 28.0;
+                    String thresholdFormatted = String.format(java.util.Locale.US, "%.2f", currentThreshold);
+                    String payload = deviceId + ";" + now + ";" + tempFormatted + ";" + thresholdFormatted;
+                    mqtt.publish(Config.alarmTopic(deviceId), payload);
+                    System.out.println("[" + deviceId + "] ALARMĂ TRIMISĂ PE REȚEA: " + payload);
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt(); // ieșim din buclă dacă se închide aplicația
+                break;
+            }
+        }
+    }
+
         // TODO 2: implementați taskul sporadic:
         //   - așteptați un eveniment: alarmEvents.take()
         //   - dacă de la ultima eliberare au trecut mai puțin de
@@ -38,4 +63,4 @@ public class SporadicAlarmTask implements Runnable {
         //
         // Vezi exemplul exemple/01-taskuri/.../SporadicTaskExample.java
     }
-}
+
